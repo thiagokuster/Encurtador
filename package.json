@@ -9,7 +9,10 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "test": "node --experimental-strip-types --import ./tests/register-loader.mjs --test tests/*.test.mjs",
+    "backup": "node --experimental-strip-types --import ./tests/register-loader.mjs scripts/backup.mjs",
+    "restore": "node --experimental-strip-types --import ./tests/register-loader.mjs scripts/restore.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",

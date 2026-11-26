@@ -1,4 +1,3 @@
-import { cookies } from "next/headers";
 import { createId, hmac, randomToken, safeEqual, sha256 } from "@/server/crypto";
 import { one, run } from "@/server/db";
 import { ApiError } from "@/server/errors";
@@ -36,9 +35,7 @@ export function sessionCookieOptions() {
   };
 }
 
-export async function getSession() {
-  const jar = await cookies();
-  const token = jar.get(SESSION_COOKIE)?.value;
+export function findSession(token: string | undefined | null) {
   if (!token || token.length < 20) return null;
   const row = one<UserRow & { session_id: string; expires_at: number }>(
     `SELECT u.id, u.email, u.name, u.password_hash, u.created_at, s.id AS session_id, s.expires_at
@@ -52,6 +49,16 @@ export async function getSession() {
   }
   const user: SessionUser = { id: row.id, email: row.email, name: row.name };
   return { user, sessionId: row.session_id };
+}
+
+async function cookieJar() {
+  const { cookies } = await import("next/headers");
+  return cookies();
+}
+
+export async function getSession() {
+  const jar = await cookieJar();
+  return findSession(jar.get(SESSION_COOKIE)?.value);
 }
 
 export async function requireSession() {
@@ -230,12 +237,12 @@ export async function changePassword(userId: string, sessionId: string, currentP
 }
 
 export async function clearSessionCookie() {
-  const jar = await cookies();
+  const jar = await cookieJar();
   jar.set(SESSION_COOKIE, "", { ...sessionCookieOptions(), maxAge: 0 });
 }
 
 export async function writeSessionCookie(token: string) {
-  const jar = await cookies();
+  const jar = await cookieJar();
   jar.set(SESSION_COOKIE, token, sessionCookieOptions());
 }
 

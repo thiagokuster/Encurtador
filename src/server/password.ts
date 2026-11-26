@@ -1,6 +1,13 @@
 import bcrypt from "bcryptjs";
 
-const COST = 12;
+function passwordCost() {
+  if (process.env.NODE_ENV === "production") return 12;
+  const raw = Number(process.env.BCRYPT_COST);
+  if (Number.isInteger(raw) && raw >= 4 && raw <= 12) return raw;
+  return 12;
+}
+
+const COST = passwordCost();
 let dummyHash: Promise<string> | null = null;
 
 export function hashPassword(password: string) {

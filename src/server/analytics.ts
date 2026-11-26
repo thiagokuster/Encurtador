@@ -10,6 +10,8 @@ import type { CountPoint, LinkAnalytics, Overview, TimePoint } from "@/lib/types
 import { anonymizeIp, createId, getSecret, sha256 } from "@/server/crypto";
 import { many, one, run, transaction } from "@/server/db";
 import { ApiError } from "@/server/errors";
+import { csvCell } from "@/lib/csv";
+import { trustProxyEnabled } from "@/server/client-ip";
 import { continentOf, countryName, readGeo } from "@/server/geo";
 import { getOwnedLink } from "@/server/links";
 import { publicBase, requestHost } from "@/server/request";
@@ -48,7 +50,7 @@ export function shouldCountClick(req: Request) {
 
 export function buildClickInput(req: Request, link: { id: string; user_id: string }): ClickInput {
   const agent = parseUserAgent(req.headers.get("user-agent"));
-  const geo = readGeo(req.headers);
+  const geo = readGeo(req.headers, trustProxyEnabled());
   const referrer = classifyReferrer(req.headers.get("referer"), requestHost(req));
   const day = new Intl.DateTimeFormat("en-CA", {
     year: "numeric",
@@ -436,13 +438,6 @@ export function purgeAnalytics(userId: string, linkId?: string) {
     logSecurity(userId, "analytics_purged", "Analytics de todos os links excluídos.");
   }
   return { ok: true };
-}
-
-function csvCell(value: unknown) {
-  let text = value == null ? "" : String(value);
-  if (/^[=+\-@\t\r]/.test(text)) text = `'${text}`;
-  if (/[";\n\r]/.test(text)) return `"${text.replace(/"/g, '""')}"`;
-  return text;
 }
 
 export function exportCsv(userId: string, range: ResolvedRange, linkId?: string) {

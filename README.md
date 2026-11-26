@@ -42,9 +42,17 @@ O gerenciador do projeto é o npm, com o lockfile `package-lock.json`. É precis
 
 Abra [http://localhost:3000](http://localhost:3000) e crie a primeira conta. Essa conta é a administradora e é a única que abre ou fecha o cadastro. O banco fica em `data/encurtador.sqlite`.
 
-O arquivo SQLite precisa de disco persistente e de uma única instância do processo. Um ambiente serverless, como a Vercel, não serve para este banco.
+O arquivo SQLite precisa de disco persistente e de uma única instância do processo. A segunda instância recusa abrir o mesmo banco. Um ambiente serverless, como a Vercel, não serve para este banco.
 
-Se a instalação estiver atrás de um proxy reverso, defina `TRUST_PROXY=1`. O IP considerado é o último valor de `X-Forwarded-For`, aquele que o proxy acrescenta. Sem essa variável, a aplicação ignora os cabeçalhos de IP enviados pelo cliente.
+Para copiar o banco sem desligar a aplicação:
+
+```bash
+npm run backup
+```
+
+A cópia fica em `data/backups/`. Para voltar um backup, pare a aplicação e rode `npm run restore -- data/backups/nome-do-arquivo.sqlite`.
+
+Se a instalação estiver atrás de um proxy reverso, defina `TRUST_PROXY=1`. O IP considerado é o último valor de `X-Forwarded-For`, aquele que o proxy acrescenta. Sem essa variável, a aplicação ignora os cabeçalhos de IP, de país e de host enviados pelo cliente. Em produção, as páginas enviam HSTS e uma CSP com nonce nos scripts.
 
 Uma conta criada com senha não entra pelo Google. O Google só abre uma conta que já nasceu nele, ou cria uma conta nova quando o cadastro está aberto.
 
@@ -54,7 +62,7 @@ Para o botão “Entrar com o Google”, preencha `AUTH_GOOGLE_ID` e `AUTH_GOOGL
 
 ## Analytics e privacidade
 
-Um clique pode registrar data e hora, dispositivo, navegador, sistema, categoria de origem e o domínio do referenciador. País, região e cidade só entram se o proxy enviar esses cabeçalhos. O IP completo não é armazenado. Prefetch e robôs conhecidos redirecionam, mas não contam.
+Um clique pode registrar data e hora, dispositivo, navegador, sistema, categoria de origem e o domínio do referenciador. País, região e cidade só entram com `TRUST_PROXY=1` e quando o proxy envia esses cabeçalhos. O IP completo não é armazenado. Prefetch e robôs conhecidos redirecionam, mas não contam.
 
 A retenção padrão é de 365 dias e pode ser alterada nas configurações. Excluir os analytics zera os eventos e o total do link. A limpeza por retenção apaga eventos antigos e mantém o total acumulado.
 

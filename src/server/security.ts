@@ -1,35 +1,14 @@
 import { anonymizeIp, createId, sha256, getSecret } from "@/server/crypto";
+import { clientIpFromHeaders } from "@/server/client-ip";
 import { one, run } from "@/server/db";
 import { ApiError } from "@/server/errors";
+import { requestHost } from "@/server/request";
 
 type Bucket = { count: number; reset: number };
 const buckets = new Map<string, Bucket>();
 
-function trustProxyEnabled() {
-  return /^(1|true|yes)$/i.test(process.env.TRUST_PROXY?.trim() ?? "");
-}
-
-function hop(value: string) {
-  let ip = value.trim();
-  if (!ip || ip.toLowerCase() === "unknown") return "";
-  if (ip.startsWith("[")) {
-    const end = ip.indexOf("]");
-    ip = end > 1 ? ip.slice(1, end) : "";
-  } else if (/^\d{1,3}(\.\d{1,3}){3}:\d+$/.test(ip)) {
-    ip = ip.slice(0, ip.lastIndexOf(":"));
-  }
-  return ip;
-}
-
 export function clientIp(req: Request) {
-  const forwarded = req.headers.get("x-forwarded-for")?.trim() || "";
-  if (trustProxyEnabled()) {
-    const last = forwarded.split(",").map((part) => hop(part)).filter(Boolean).at(-1);
-    if (last) return last;
-    return hop(req.headers.get("x-real-ip") || "") || "unknown";
-  }
-  if (!forwarded || forwarded.includes(",")) return "unknown";
-  return hop(forwarded) || "unknown";
+  return clientIpFromHeaders(req.headers);
 }
 
 export function clientKey(req: Request, scope: string) {
@@ -62,7 +41,7 @@ export function assertRate(key: string, limit: number, windowMs: number, userId:
 
 export function assertSameOrigin(req: Request) {
   const origin = req.headers.get("origin");
-  const host = (req.headers.get("x-forwarded-host") || req.headers.get("host") || "").split(",")[0].trim();
+  const host = requestHost(req);
   if (!origin || !host) throw new ApiError(403, "Origem da requisição não reconhecida.");
   let parsed: URL;
   try {

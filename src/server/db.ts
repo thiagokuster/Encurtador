@@ -1,6 +1,8 @@
 import fs from "fs";
 import path from "path";
 import { DatabaseSync, type SQLInputValue } from "node:sqlite";
+import { acquireInstanceLock, releaseInstanceLock } from "@/server/instance-lock";
+import { dataDirectory } from "@/server/paths";
 
 const globalDb = globalThis as unknown as { __encurtadorDb?: DatabaseSync };
 
@@ -158,8 +160,11 @@ function migrate(db: DatabaseSync) {
 
 export function getDb() {
   if (!globalDb.__encurtadorDb) {
-    const directory = path.join(process.cwd(), "data");
+    const directory = dataDirectory();
     fs.mkdirSync(directory, { recursive: true });
+    const lock = path.join(directory, "encurtador.lock");
+    acquireInstanceLock(lock);
+    process.once("exit", () => releaseInstanceLock(lock));
     const db = new DatabaseSync(path.join(directory, "encurtador.sqlite"));
     db.exec("PRAGMA journal_mode = WAL");
     db.exec("PRAGMA foreign_keys = ON");

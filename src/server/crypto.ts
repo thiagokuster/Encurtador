@@ -2,6 +2,7 @@ import crypto from "crypto";
 import fs from "fs";
 import path from "path";
 import { embeddedIpv4 } from "@/lib/url-policy";
+import { dataDirectory } from "@/server/paths";
 
 let secretCache: string | null = null;
 
@@ -16,7 +17,7 @@ export function getSecret() {
     return secretCache;
   }
 
-  const file = path.join(process.cwd(), "data", "auth-secret");
+  const file = path.join(dataDirectory(), "auth-secret");
   fs.mkdirSync(path.dirname(file), { recursive: true });
   if (fs.existsSync(file)) {
     const stored = fs.readFileSync(file, "utf8").trim();

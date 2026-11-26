@@ -27,7 +27,8 @@ export function countryName(code: string | null) {
   }
 }
 
-export function readGeo(headers: Headers) {
+export function readGeo(headers: Headers, trustProxy = false) {
+  if (!trustProxy) return { country: null, region: null, city: null };
   const rawCountry = (headers.get("x-vercel-ip-country") || headers.get("cf-ipcountry") || headers.get("x-country-code") || "")
     .trim()
     .toUpperCase();
