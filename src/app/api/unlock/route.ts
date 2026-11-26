@@ -1,6 +1,6 @@
 import { cookies } from "next/headers";
-import bcrypt from "bcryptjs";
 import { signUnlock, UNLOCK_COOKIE, unlockCookieOptions } from "@/server/auth";
+import { verifyPassword } from "@/server/password";
 import { ApiError } from "@/server/errors";
 import { json, readJson, withApi } from "@/server/http";
 import { getLinkBySlug } from "@/server/links";
@@ -18,7 +18,7 @@ export const POST = withApi(async (req) => {
   if (!link || !link.password_hash) throw new ApiError(400, "Este link não pede senha.");
   if (link.status !== "active") throw new ApiError(400, "Este link está desativado.");
   if (link.expires_at && link.expires_at <= Date.now()) throw new ApiError(400, "Este link expirou.");
-  if (!bcrypt.compareSync(password, link.password_hash)) {
+  if (!(await verifyPassword(password, link.password_hash))) {
     logSecurity(link.user_id, "unlock_failed", "Senha de link recusada.");
     throw new ApiError(401, "Senha incorreta.");
   }

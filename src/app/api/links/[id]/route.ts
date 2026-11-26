@@ -15,7 +15,7 @@ export const GET = withApi(async (req, ctx) => {
 export const PATCH = withApi(async (req, ctx) => {
   const { user } = await requireUser();
   const body = await readJson(req);
-  return json(updateLink(user.id, await routeParam(ctx, "id"), body, req));
+  return json(await updateLink(user.id, await routeParam(ctx, "id"), body, req));
 });
 
 export const DELETE = withApi(async (_req, ctx) => {

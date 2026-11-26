@@ -132,6 +132,7 @@ export type SettingsDTO = {
   defaultRedirect: 301 | 302;
   linkLimit: number;
   registrationOpen: boolean;
+  isAdmin: boolean;
   baseUrl: string;
   account: { name: string; email: string; createdAt: string };
   logs: SecurityLogDTO[];

@@ -5,10 +5,31 @@ import { ApiError } from "@/server/errors";
 type Bucket = { count: number; reset: number };
 const buckets = new Map<string, Bucket>();
 
+function trustProxyEnabled() {
+  return /^(1|true|yes)$/i.test(process.env.TRUST_PROXY?.trim() ?? "");
+}
+
+function hop(value: string) {
+  let ip = value.trim();
+  if (!ip || ip.toLowerCase() === "unknown") return "";
+  if (ip.startsWith("[")) {
+    const end = ip.indexOf("]");
+    ip = end > 1 ? ip.slice(1, end) : "";
+  } else if (/^\d{1,3}(\.\d{1,3}){3}:\d+$/.test(ip)) {
+    ip = ip.slice(0, ip.lastIndexOf(":"));
+  }
+  return ip;
+}
+
 export function clientIp(req: Request) {
-  const forwarded = req.headers.get("x-forwarded-for");
-  if (forwarded) return forwarded.split(",")[0]?.trim() || "unknown";
-  return req.headers.get("x-real-ip")?.trim() || "unknown";
+  const forwarded = req.headers.get("x-forwarded-for")?.trim() || "";
+  if (trustProxyEnabled()) {
+    const last = forwarded.split(",").map((part) => hop(part)).filter(Boolean).at(-1);
+    if (last) return last;
+    return hop(req.headers.get("x-real-ip") || "") || "unknown";
+  }
+  if (!forwarded || forwarded.includes(",")) return "unknown";
+  return hop(forwarded) || "unknown";
 }
 
 export function clientKey(req: Request, scope: string) {
@@ -95,6 +116,19 @@ export function isRegistrationOpen() {
   if (!count || count.n === 0) return true;
   const flag = one<{ value: string }>("SELECT value FROM app_flags WHERE key = 'registration_open'");
   return !flag || flag.value === "1";
+}
+
+export function ensureAdmin() {
+  const admin = one<{ id: string }>("SELECT id FROM users WHERE is_admin = 1 LIMIT 1");
+  if (admin) return;
+  const oldest = one<{ id: string }>("SELECT id FROM users ORDER BY created_at ASC, id ASC LIMIT 1");
+  if (!oldest) return;
+  run("UPDATE users SET is_admin = 1 WHERE id = ?", oldest.id);
+}
+
+export function userIsAdmin(userId: string) {
+  const row = one<{ is_admin: number }>("SELECT is_admin FROM users WHERE id = ?", userId);
+  return row?.is_admin === 1;
 }
 
 export function setRegistrationOpen(open: boolean) {

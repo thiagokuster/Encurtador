@@ -1,4 +1,3 @@
-import bcrypt from "bcryptjs";
 import crypto from "crypto";
 import { DEFAULT_QR_BACKGROUND, DEFAULT_QR_COLOR } from "@/lib/constants";
 import type { LinkDTO, LinksPage, LinkState } from "@/lib/types";
@@ -14,6 +13,7 @@ import {
   validateSlug,
 } from "@/lib/validators";
 import { createId } from "@/server/crypto";
+import { hashPassword } from "@/server/password";
 import { many, one, run, transaction } from "@/server/db";
 import { ApiError } from "@/server/errors";
 import { publicBase, requestHost } from "@/server/request";
@@ -213,7 +213,7 @@ export function listLinks(userId: string, url: URL, req: Request): LinksPage {
   };
 }
 
-export function createLink(userId: string, body: Record<string, unknown>, req: Request) {
+export async function createLink(userId: string, body: Record<string, unknown>, req: Request) {
   const settings = getSettings(userId);
   const limit = Math.min(Number(settings.link_limit) || 500, 2000);
   const existing = one<{ n: number }>("SELECT COUNT(*) AS n FROM links WHERE user_id = ?", userId);
@@ -242,7 +242,7 @@ export function createLink(userId: string, body: Record<string, unknown>, req: R
   if (typeof body.password === "string" && body.password.length > 0) {
     const passwordError = validateLinkPassword(body.password);
     if (passwordError) throw new ApiError(400, passwordError);
-    passwordHash = bcrypt.hashSync(body.password, 12);
+    passwordHash = await hashPassword(body.password);
   }
 
   const requested = typeof body.slug === "string" ? body.slug.trim() : "";
@@ -294,7 +294,7 @@ export function createLink(userId: string, body: Record<string, unknown>, req: R
   throw new ApiError(500, "Não foi possível gerar um endereço curto. Tente novamente.");
 }
 
-export function updateLink(userId: string, id: string, body: Record<string, unknown>, req: Request) {
+export async function updateLink(userId: string, id: string, body: Record<string, unknown>, req: Request) {
   const current = one<LinkRow>("SELECT * FROM links WHERE id = ? AND user_id = ?", id, userId);
   if (!current) throw new ApiError(404, "Link não encontrado.");
 
@@ -372,7 +372,7 @@ export function updateLink(userId: string, id: string, body: Record<string, unkn
       const passwordError = validateLinkPassword(body.password);
       if (passwordError) throw new ApiError(400, passwordError);
       sets.push("password_hash = ?");
-      params.push(bcrypt.hashSync(body.password, 12));
+      params.push(await hashPassword(body.password));
     } else {
       throw new ApiError(400, "Senha do link inválida.");
     }

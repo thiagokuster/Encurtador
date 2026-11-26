@@ -8,6 +8,7 @@ Ainda não há uma versão publicada. Depois de rodar localmente, abra [http://l
 
 ## 🛠️ Tecnologias
 
+- Node.js 22.5 ou mais recente
 - Next.js
 - React
 - TypeScript
@@ -37,9 +38,15 @@ npm install
 npm run dev
 ```
 
-O gerenciador do projeto é o npm, com o lockfile `package-lock.json`.
+O gerenciador do projeto é o npm, com o lockfile `package-lock.json`. É preciso Node.js 22.5 ou mais recente, porque o banco usa `node:sqlite`.
 
-Abra [http://localhost:3000](http://localhost:3000) e crie a primeira conta. O banco fica em `data/encurtador.sqlite`.
+Abra [http://localhost:3000](http://localhost:3000) e crie a primeira conta. Essa conta é a administradora e é a única que abre ou fecha o cadastro. O banco fica em `data/encurtador.sqlite`.
+
+O arquivo SQLite precisa de disco persistente e de uma única instância do processo. Um ambiente serverless, como a Vercel, não serve para este banco.
+
+Se a instalação estiver atrás de um proxy reverso, defina `TRUST_PROXY=1`. O IP considerado é o último valor de `X-Forwarded-For`, aquele que o proxy acrescenta. Sem essa variável, a aplicação ignora os cabeçalhos de IP enviados pelo cliente.
+
+Uma conta criada com senha não entra pelo Google. O Google só abre uma conta que já nasceu nele, ou cria uma conta nova quando o cadastro está aberto.
 
 Copie `.env.example` para `.env` quando for definir o segredo. `AUTH_SECRET` precisa ter pelo menos 32 caracteres. Se ficar vazio, a aplicação gera um segredo e guarda em `data/auth-secret`. `EXPOSE_RESET_LINK=true` mostra o link de redefinição na tela durante o desenvolvimento. Em produção esse link nunca aparece.
 

@@ -1,9 +1,9 @@
 import { cookies } from "next/headers";
-import bcrypt from "bcryptjs";
 import { createId, hmac, randomToken, safeEqual, sha256 } from "@/server/crypto";
 import { one, run } from "@/server/db";
 import { ApiError } from "@/server/errors";
-import { isRegistrationOpen, logSecurity, readCookie } from "@/server/security";
+import { hashPassword, placeholderPasswordHash, verifyPassword } from "@/server/password";
+import { ensureAdmin, isRegistrationOpen, logSecurity, readCookie } from "@/server/security";
 import type { SessionUser } from "@/lib/types";
 import { validateEmail, validateName, validatePassword } from "@/lib/validators";
 
@@ -12,13 +12,6 @@ const UNLOCK_COOKIE = "enc_unlock";
 const SESSION_MS = 14 * 24 * 60 * 60 * 1000;
 const RESET_MS = 30 * 60 * 1000;
 const UNLOCK_MS = 12 * 60 * 60 * 1000;
-
-let dummyHash: string | null = null;
-
-function placeholderHash() {
-  if (!dummyHash) dummyHash = bcrypt.hashSync("encurtador-placeholder-password", 12);
-  return dummyHash;
-}
 
 type UserRow = {
   id: string;
@@ -96,7 +89,7 @@ export async function registerAccount(input: { name: string; email: string; pass
 
   const now = Date.now();
   const userId = createId();
-  const passwordHash = bcrypt.hashSync(input.password, 12);
+  const passwordHash = await hashPassword(input.password);
   run(
     "INSERT INTO users (id, email, name, password_hash, provider, created_at, updated_at) VALUES (?, ?, ?, ?, 'password', ?, ?)",
     userId,
@@ -112,6 +105,7 @@ export async function registerAccount(input: { name: string; email: string; pass
     userId,
     now,
   );
+  ensureAdmin();
   logSecurity(userId, "register", "Conta criada.");
   return createSession(userId);
 }
@@ -123,10 +117,10 @@ function googleDisplayName(raw: string, email: string) {
   return local.length >= 2 ? local : "Conta Google";
 }
 
-export function loginWithGoogle(emailInput: string, nameInput: string) {
+export async function loginWithGoogle(emailInput: string, nameInput: string) {
   const email = validateEmail(emailInput);
   if (!email.ok) throw new ApiError(400, email.error);
-  const existing = one<{ id: string }>("SELECT id FROM users WHERE email = ?", email.email);
+  const existing = one<{ id: string; provider: string }>("SELECT id, provider FROM users WHERE email = ?", email.email);
   const now = Date.now();
   if (!existing) {
     if (!isRegistrationOpen()) throw new ApiError(403, "O cadastro de novas contas está fechado.");
@@ -136,7 +130,7 @@ export function loginWithGoogle(emailInput: string, nameInput: string) {
       userId,
       email.email,
       googleDisplayName(nameInput, email.email),
-      bcrypt.hashSync(randomToken(), 12),
+      await hashPassword(randomToken()),
       now,
       now,
     );
@@ -146,8 +140,12 @@ export function loginWithGoogle(emailInput: string, nameInput: string) {
       userId,
       now,
     );
+    ensureAdmin();
     logSecurity(userId, "register", "Conta criada com o Google.");
     return createSession(userId);
+  }
+  if (existing.provider !== "google") {
+    throw new ApiError(409, "Este e-mail já tem uma conta com senha.");
   }
   logSecurity(existing.id, "google_login", "Entrada com o Google.");
   return createSession(existing.id);
@@ -159,7 +157,7 @@ export async function loginAccount(emailInput: string, password: string) {
   const user = email.ok
     ? one<UserRow>("SELECT id, email, name, password_hash, created_at FROM users WHERE email = ?", email.email)
     : undefined;
-  const matches = bcrypt.compareSync(password, user?.password_hash || placeholderHash());
+  const matches = await verifyPassword(password, user?.password_hash || (await placeholderPasswordHash()));
   if (!email.ok || !user || !matches) {
     if (user) logSecurity(user.id, "login_failed", "Tentativa de login recusada.");
     throw new ApiError(401, "E-mail ou senha incorretos.");
@@ -200,7 +198,7 @@ export function requestReset(emailInput: string, origin: string) {
   return { resetUrl: exposeResetLink() ? resetUrl : null };
 }
 
-export function completeReset(token: string, password: string) {
+export async function completeReset(token: string, password: string) {
   const passwordError = validatePassword(password);
   if (passwordError) throw new ApiError(400, passwordError);
   if (!token || token.length < 20) throw new ApiError(400, "Link de redefinição inválido ou expirado.");
@@ -212,21 +210,21 @@ export function completeReset(token: string, password: string) {
     throw new ApiError(400, "Link de redefinição inválido ou expirado.");
   }
   const now = Date.now();
-  run("UPDATE users SET password_hash = ?, updated_at = ? WHERE id = ?", bcrypt.hashSync(password, 12), now, row.user_id);
+  run("UPDATE users SET password_hash = ?, updated_at = ? WHERE id = ?", await hashPassword(password), now, row.user_id);
   run("UPDATE password_resets SET used_at = ? WHERE id = ?", now, row.id);
   run("DELETE FROM sessions WHERE user_id = ?", row.user_id);
   logSecurity(row.user_id, "password_reset_completed", "Senha redefinida.");
   return createSession(row.user_id);
 }
 
-export function changePassword(userId: string, sessionId: string, currentPassword: string, nextPassword: string) {
+export async function changePassword(userId: string, sessionId: string, currentPassword: string, nextPassword: string) {
   const user = one<{ password_hash: string }>("SELECT password_hash FROM users WHERE id = ?", userId);
-  if (!user || !bcrypt.compareSync(currentPassword, user.password_hash)) {
+  if (!user || !(await verifyPassword(currentPassword, user.password_hash))) {
     throw new ApiError(400, "A senha atual está incorreta.");
   }
   const passwordError = validatePassword(nextPassword);
   if (passwordError) throw new ApiError(400, passwordError);
-  run("UPDATE users SET password_hash = ?, updated_at = ? WHERE id = ?", bcrypt.hashSync(nextPassword, 12), Date.now(), userId);
+  run("UPDATE users SET password_hash = ?, updated_at = ? WHERE id = ?", await hashPassword(nextPassword), Date.now(), userId);
   run("DELETE FROM sessions WHERE user_id = ? AND id != ?", userId, sessionId);
   logSecurity(userId, "password_changed", "Senha da conta alterada.");
 }

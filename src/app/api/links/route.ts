@@ -19,5 +19,5 @@ export const POST = withApi(async (req) => {
   if (typeof body.company === "string" && body.company.trim()) {
     throw new ApiError(400, "Não foi possível criar o link.");
   }
-  return json(createLink(user.id, body, req), 201);
+  return json(await createLink(user.id, body, req), 201);
 });

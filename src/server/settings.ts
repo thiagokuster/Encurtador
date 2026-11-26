@@ -9,7 +9,7 @@ import { changePassword } from "@/server/auth";
 import { one, many, run } from "@/server/db";
 import { ApiError } from "@/server/errors";
 import { publicBase } from "@/server/request";
-import { isRegistrationOpen, logSecurity, setRegistrationOpen } from "@/server/security";
+import { ensureAdmin, isRegistrationOpen, logSecurity, setRegistrationOpen, userIsAdmin } from "@/server/security";
 
 export type SettingsRow = {
   user_id: string;
@@ -61,8 +61,8 @@ function validateDomain(input: unknown) {
 
 export function settingsDTO(userId: string, req: Request): SettingsDTO {
   const settings = getSettings(userId);
-  const account = one<{ name: string; email: string; created_at: number }>(
-    "SELECT name, email, created_at FROM users WHERE id = ?",
+  const account = one<{ name: string; email: string; created_at: number; is_admin: number }>(
+    "SELECT name, email, created_at, is_admin FROM users WHERE id = ?",
     userId,
   );
   if (!account) throw new ApiError(401, "Sessão expirada. Entre novamente.");
@@ -79,6 +79,7 @@ export function settingsDTO(userId: string, req: Request): SettingsDTO {
     defaultRedirect: settings.default_redirect === 301 ? 301 : 302,
     linkLimit: settings.link_limit,
     registrationOpen: isRegistrationOpen(),
+    isAdmin: account.is_admin === 1,
     baseUrl: publicBase(req, settings.domain),
     account: {
       name: account.name,
@@ -94,7 +95,7 @@ export function settingsDTO(userId: string, req: Request): SettingsDTO {
   };
 }
 
-export function updateSettings(userId: string, sessionId: string, body: Record<string, unknown>, req: Request) {
+export async function updateSettings(userId: string, sessionId: string, body: Record<string, unknown>, req: Request) {
   const current = getSettings(userId);
   const patch: {
     theme?: Theme;
@@ -134,6 +135,7 @@ export function updateSettings(userId: string, sessionId: string, body: Record<s
     patch.linkLimit = limit;
   }
   if ("registrationOpen" in body) {
+    if (!userIsAdmin(userId)) throw new ApiError(403, "Só o administrador pode alterar o cadastro.");
     if (typeof body.registrationOpen !== "boolean") throw new ApiError(400, "Configuração de cadastro inválida.");
     patch.registrationOpen = body.registrationOpen;
   }
@@ -148,7 +150,7 @@ export function updateSettings(userId: string, sessionId: string, body: Record<s
     if (typeof body.currentPassword !== "string" || !body.currentPassword) {
       throw new ApiError(400, "Informe a senha atual para definir uma nova.");
     }
-    changePassword(userId, sessionId, body.currentPassword, body.newPassword as string);
+    await changePassword(userId, sessionId, body.currentPassword, body.newPassword as string);
   }
 
   const now = Date.now();
@@ -198,5 +200,6 @@ export function deleteOwnAccount(userId: string, confirmation: unknown) {
   run("DELETE FROM users WHERE id = ?", userId);
   const remaining = one<{ n: number }>("SELECT COUNT(*) AS n FROM users");
   if (!remaining?.n) setRegistrationOpen(true);
+  ensureAdmin();
   return { ok: true };
 }

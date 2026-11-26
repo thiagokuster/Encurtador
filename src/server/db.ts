@@ -11,6 +11,7 @@ CREATE TABLE users (
   name TEXT NOT NULL,
   password_hash TEXT NOT NULL,
   provider TEXT NOT NULL DEFAULT 'password' CHECK (provider IN ('password', 'google')),
+  is_admin INTEGER NOT NULL DEFAULT 0 CHECK (is_admin IN (0, 1)),
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL
 );
@@ -139,6 +140,19 @@ function migrate(db: DatabaseSync) {
       db.exec("ALTER TABLE users ADD COLUMN provider TEXT NOT NULL DEFAULT 'password'");
     }
     db.exec("PRAGMA user_version = 2");
+  }
+  if (version < 3) {
+    const columns = db.prepare("PRAGMA table_info(users)").all() as { name: string }[];
+    if (!columns.some((column) => column.name === "is_admin")) {
+      db.exec("ALTER TABLE users ADD COLUMN is_admin INTEGER NOT NULL DEFAULT 0");
+    }
+    db.exec(
+      `UPDATE users SET is_admin = 1
+       WHERE is_admin = 0
+         AND NOT EXISTS (SELECT 1 FROM users WHERE is_admin = 1)
+         AND id = (SELECT id FROM users ORDER BY created_at ASC, id ASC LIMIT 1)`,
+    );
+    db.exec("PRAGMA user_version = 3");
   }
 }
 

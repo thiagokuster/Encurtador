@@ -7,6 +7,7 @@ import { safeNextPath } from "@/lib/validators";
 export const metadata: Metadata = { title: "Entrar" };
 
 const googleErrors: Record<string, string> = {
+  PasswordAccount: "Este e-mail já tem uma conta com senha. Entre com a senha. O Google não é vinculado a essa conta.",
   AccessDenied: "Não foi possível entrar com o Google. Confirme se o e-mail está verificado e se o cadastro de contas novas está aberto.",
   Configuration: "O login com Google não está configurado neste servidor.",
   OAuthSignin: "O Google não iniciou o login. Tente de novo.",

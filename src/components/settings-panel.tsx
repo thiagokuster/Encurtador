@@ -61,7 +61,7 @@ export function SettingsPanel() {
           retentionDays,
           defaultRedirect,
           linkLimit,
-          registrationOpen,
+          ...(remote.data?.isAdmin ? { registrationOpen } : {}),
           currentPassword,
           newPassword,
         }),
@@ -167,8 +167,14 @@ export function SettingsPanel() {
                 <input className="field" type="number" min={10} max={2000} value={linkLimit} onChange={(event) => setLinkLimit(Number(event.target.value))} />
               </label>
             </div>
-            <label className="checks"><input type="checkbox" checked={registrationOpen} onChange={(event) => setRegistrationOpen(event.target.checked)} /> Permitir cadastro de novas contas</label>
-            <p className="hint">A primeira conta sempre pode ser criada. Feche o cadastro depois disso para usar a instalação de forma privada.</p>
+            {remote.data.isAdmin ? (
+              <>
+                <label className="checks"><input type="checkbox" checked={registrationOpen} onChange={(event) => setRegistrationOpen(event.target.checked)} /> Permitir cadastro de novas contas</label>
+                <p className="hint">Só o administrador altera isso. A primeira conta da instalação é a administradora, e uma conta nova sempre pode ser criada quando não houver nenhuma.</p>
+              </>
+            ) : (
+              <p className="hint">O cadastro de novas contas é controlado pelo administrador da instalação.</p>
+            )}
           </div>
         </Panel>
         <Panel title="Analytics e retenção">

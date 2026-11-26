@@ -12,5 +12,5 @@ export const GET = withApi(async (req) => {
 export const PATCH = withApi(async (req) => {
   const session = await requireUser();
   const body = await readJson(req);
-  return json(updateSettings(session.user.id, session.sessionId, body, req));
+  return json(await updateSettings(session.user.id, session.sessionId, body, req));
 });

@@ -1,6 +1,7 @@
 import crypto from "crypto";
 import fs from "fs";
 import path from "path";
+import { embeddedIpv4 } from "@/lib/url-policy";
 
 let secretCache: string | null = null;
 
@@ -55,7 +56,7 @@ export function safeEqual(left: string, right: string) {
 }
 
 export function anonymizeIp(ip: string) {
-  const cleaned = ip.trim().replace(/^::ffff:/i, "");
+  const cleaned = (embeddedIpv4(ip) ?? ip.trim().replace(/^::ffff:/i, "")).trim();
   if (/^\d{1,3}(\.\d{1,3}){3}$/.test(cleaned)) {
     const parts = cleaned.split(".");
     return `${parts[0]}.${parts[1]}.${parts[2]}.0`;

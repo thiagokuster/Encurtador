@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 export const POST = withApi(async (req) => {
   assertRate(clientKey(req, "reset"), 8, 60 * 60 * 1000);
   const body = await readJson(req);
-  const token = completeReset(String(body.token ?? ""), String(body.password ?? ""));
+  const token = await completeReset(String(body.token ?? ""), String(body.password ?? ""));
   await writeSessionCookie(token);
   return json({ ok: true });
 });
